@@ -27,16 +27,13 @@ GPT_4_AUGMENTED_CONFIG = {
     "mf": {"checkpoint_path": "routellm/mf_gpt4_augmented"},
 }
 
-
 class RoutingError(Exception):
     pass
-
 
 @dataclass
 class ModelPair:
     strong: str
     weak: str
-
 
 class Controller:
     def __init__(
@@ -55,6 +52,7 @@ class Controller:
         self.api_key = api_key
         self.model_counts = defaultdict(lambda: defaultdict(int))
         self.progress_bar = progress_bar
+        self.direct_models = [strong_model, weak_model]  # Models that bypass routing
 
         if config is None:
             config = GPT_4_AUGMENTED_CONFIG
@@ -91,15 +89,21 @@ class Controller:
             )
 
     def _parse_model_name(self, model: str):
+        # Check if the model should bypass routing
+        if model in self.direct_models:
+            return model, None  # Return the model name and None for threshold
+        
+        if not model.startswith("router-"):
+            raise RoutingError(
+                f"Invalid model {model}. Model name must be of the format 'router-[router name]-[threshold]' or a direct model name."
+            )
+        
         _, router, threshold = model.split("-", 2)
         try:
             threshold = float(threshold)
         except ValueError as e:
             raise RoutingError(f"Threshold {threshold} must be a float.") from e
-        if not model.startswith("router"):
-            raise RoutingError(
-                f"Invalid model {model}. Model name must be of the format 'router-[router name]-[threshold]."
-            )
+        
         return router, threshold
 
     def _get_routed_model_for_completion(
@@ -145,6 +149,8 @@ class Controller:
     ):
         if "model" in kwargs:
             router, threshold = self._parse_model_name(kwargs["model"])
+            if threshold is None:  # Direct model call, no routing needed
+                return completion(api_base=self.api_base, api_key=self.api_key, **kwargs)
 
         self._validate_router_threshold(router, threshold)
         kwargs["model"] = self._get_routed_model_for_completion(
@@ -162,9 +168,11 @@ class Controller:
     ):
         if "model" in kwargs:
             router, threshold = self._parse_model_name(kwargs["model"])
+            if threshold is None:  # Direct model call, no routing needed
+                return await acompletion(api_base=self.api_base, api_key=self.api_key, drop_params=True, **kwargs)
 
         self._validate_router_threshold(router, threshold)
         kwargs["model"] = self._get_routed_model_for_completion(
             kwargs["messages"], router, threshold
         )
-        return await acompletion(api_base=self.api_base, api_key=self.api_key, **kwargs)
+        return await acompletion(api_base=self.api_base, api_key=self.api_key, drop_params=True, **kwargs)
