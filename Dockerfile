@@ -14,8 +14,6 @@ COPY . .
 EXPOSE 8000
 
 # Set environment variables for OpenAI and Together API keys
-ENV OPENAI_API_KEY=""
-ENV TOGETHER_API_KEY=""
 ENV ENABLED_ROUTERS=mf
 
 # Define the command to run the API

@@ -1,0 +1,47 @@
+{
+  "family": "plexe-router-task",
+  "networkMode": "awsvpc",
+  "requiresCompatibilities": ["FARGATE"],
+  "cpu": "256",
+  "memory": "512",
+  "executionRoleArn": "arn:aws:iam::879381242898:role/ecsTaskExecutionRole",
+  "taskRoleArn": "arn:aws:iam::879381242898:role/ecsTaskRole",
+  "containerDefinitions": [
+    {
+      "name": "plexe-router",
+      "image": "879381242898.dkr.ecr.eu-west-2.amazonaws.com/plexe-router:latest",
+      "portMappings": [
+        {
+          "containerPort": 8000,
+          "hostPort": 8000,
+          "protocol": "tcp"
+        }
+      ],
+      "secrets": [
+        {
+          "name": "OPENAI_API_KEY",
+          "valueFrom": "arn:aws:secretsmanager:eu-west-2:879381242898:secret:/plexe-router/prod/OPENAI_API_KEY-5nF7Vp"
+        },
+        {
+          "name": "TOGETHER_API_KEY",
+          "valueFrom": "arn:aws:secretsmanager:eu-west-2:879381242898:secret:/plexe-router/prod/TOGETHER_API_KEY-bFdOKD"
+        }
+      ],
+      "environment": [
+        {
+          "name": "ENABLED_ROUTERS",
+          "value": "mf"
+        }
+      ],
+      "logConfiguration": {
+        "logDriver": "awslogs",
+        "options": {
+          "awslogs-group": "/ecs/plexe-router-task",
+          "awslogs-region": "eu-west-2",
+          "awslogs-stream-prefix": "ecs"
+        }
+      }
+    }
+  ]
+}
+
