@@ -135,9 +135,7 @@ class Controller:
 
     def route(self, prompt: str, router: str, threshold: float):
         self._validate_router_threshold(router, threshold)
-
         return self.routers[router].route(prompt, threshold, self.model_pair)
-
     # Matches OpenAI's Chat Completions interface, but also supports optional router and threshold args
     # If model name is present, attempt to parse router and threshold using it, otherwise, use the router and threshold args
     def completion(

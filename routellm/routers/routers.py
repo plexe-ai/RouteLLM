@@ -38,11 +38,21 @@ class Router(abc.ABC):
     def calculate_strong_win_rate(self, prompt):
         pass
 
-    def route(self, prompt, threshold, routed_pair):
-        if self.calculate_strong_win_rate(prompt) >= threshold:
-            return routed_pair.strong
+    def route(self, prompt: str, threshold: float, model_pair):
+        strong_win_rate = self.calculate_strong_win_rate(prompt)
+        if strong_win_rate >= threshold:
+            routed_model = model_pair.strong
+            rationale = (
+                f"The strong win rate ({strong_win_rate:.2f}) exceeds the threshold "
+                f"({threshold}), routing to the strong model."
+            )
         else:
-            return routed_pair.weak
+            routed_model = model_pair.weak
+            rationale = (
+                f"The strong win rate ({strong_win_rate:.2f}) is below the threshold "
+                f"({threshold}), routing to the weak model."
+            )
+        return routed_model, rationale
 
     def __str__(self):
         return NAME_TO_CLS[self.__class__]
@@ -221,7 +231,7 @@ class MatrixFactorizationRouter(Router):
         num_classes=1,
         use_proj=True,
     ):
-        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        device = torch.device( "cpu")
 
         self.model = MFModel.from_pretrained(
             checkpoint_path,

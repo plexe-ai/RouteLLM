@@ -3,6 +3,7 @@ import os
 import torch
 import yaml
 from transformers import AutoModelForCausalLM, AutoTokenizer
+from transformers import pipeline
 
 from routellm.routers.causal_llm.configs import (
     PROMPT_FORMAT_CONFIGS,
@@ -72,3 +73,15 @@ def to_openai_api_messages(system_message, classifier_message, messages):
         else:
             ret.append({"role": "assistant", "content": turn})
     return ret
+
+
+def extract_rationale_from_llm(query, model_name="causal-llm"):
+    # Load the causal LLM (already part of the RouteLLM architecture)
+    model = pipeline("text2text-generation", model=model_name)
+    
+    # Chain of Thought (CoT) prompting to extract rationale
+    prompt = f"Given this query: '{query}', explain why it should be routed to a specific model."
+    result = model(prompt, max_length=150, do_sample=False)
+    
+    rationale = result[0]['generated_text']
+    return rationale

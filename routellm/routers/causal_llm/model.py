@@ -8,6 +8,9 @@ import torch
 from routellm.routers.causal_llm.configs import ModelTypeEnum, RouterModelConfig
 from routellm.routers.causal_llm.llm_utils import get_model, get_tokenizer
 from routellm.routers.causal_llm.prompt_format import PromptFormat
+import torch.nn as nn
+from transformers import T5ForConditionalGeneration, T5Tokenizer
+
 
 
 class CausalLLMClassifier:
@@ -20,7 +23,7 @@ class CausalLLMClassifier:
         prompt_field: str = "messages",
         use_last_turn: bool = False,
         additional_fields: List[str] = list(["label", "pidx"]),
-        max_new_tokens: int = 6,
+        max_new_tokens: int = 6
     ):
         """
         This model is trained to predict a score [1, 5] for a given user query.
@@ -40,8 +43,14 @@ class CausalLLMClassifier:
         for i in range(1, config.num_outputs + 1):
             assert f"[[{i}]]" in config.special_tokens
 
+                # Load the model
         model = get_model(config=config, model_ckpt=ckpt_local_path)
-        self.model = model.to("cuda").eval()
+        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        # Move the model to the device
+        self.model = model.to(self.device).eval()
+
+        # Move the model to the appropriate device and set to evaluation mode
+        # self.model = model.to(device).eval()
 
         self.prompt_format = prompt_format
         self.use_last_turn = use_last_turn
@@ -83,7 +92,7 @@ class CausalLLMClassifier:
 
     def __call__(self, row):
         row = self.preprocess(row)
-        input_ids = torch.as_tensor(row["input_ids"]).to("cuda").reshape(1, -1)
+        input_ids = torch.as_tensor(row["input_ids"]).to(self.device).reshape(1, -1)
         with torch.no_grad():
             output_new = self.model.generate(
                 input_ids,
@@ -149,3 +158,43 @@ class CausalLLMClassifier:
             return int(float(match.group(1)))
         else:
             raise Exception(f"Bad score format {text}.")
+
+class MultiTaskRouterModel(nn.Module):
+    def __init__(self, model_name="t5-base"):
+        super(MultiTaskRouterModel, self).__init__()
+        self.model = T5ForConditionalGeneration.from_pretrained(model_name)
+        self.tokenizer = T5Tokenizer.from_pretrained(model_name)
+    
+    def forward(self, input_ids, attention_mask, labels):
+        outputs = self.model(
+            input_ids=input_ids,
+            attention_mask=attention_mask,
+            labels=labels
+        )
+        return outputs.loss
+
+    def generate(self, input_text):
+        self.model.eval()
+        inputs = self.tokenizer(
+            input_text,
+            return_tensors="pt",
+            padding=True,
+            truncation=True,
+            max_length=512
+        )
+        input_ids = inputs.input_ids.to(device)
+        attention_mask = inputs.attention_mask.to(device)
+
+        with torch.no_grad():
+            generated_ids = self.model.generate(
+                input_ids=input_ids,
+                attention_mask=attention_mask,
+                max_length=128
+            )
+        generated_text = self.tokenizer.decode(
+            generated_ids[0],
+            skip_special_tokens=True
+        )
+        return generated_text
+
+
